@@ -15,6 +15,7 @@ import org.wildfly.extras.creaper.core.offline.OfflineOptions;
 import java.io.File;
 
 import static org.wildfly.extras.creaper.XmlAssert.assertXmlIdentical;
+import static org.wildfly.extras.creaper.commands.logging.LogHandlerType.SYSLOG;
 
 public class RemoveLogHandlerOfflineTest {
     private static final String HANDLER_ORIGINAL = ""
@@ -81,6 +82,30 @@ public class RemoveLogHandlerOfflineTest {
             + "    </profile>\n"
             + "</server>";
 
+    private static final String SYSLOG_HANDLER = ""
+            + "<server xmlns=\"urn:jboss:domain:4.0\">\n"
+            + "    <profile>\n"
+            + "        <subsystem xmlns=\"urn:jboss:domain:logging:3.0\">\n"
+            + "            <syslog-handler name=\"syslog\">\n"
+            + "                <level name=\"WARN\"/>\n"
+            + "                <server-address value=\"127.0.0.1\"/>\n"
+            + "                <port value=\"9899\"/>\n"
+            + "                <app-name value=\"java\"/>\n"
+            + "                <formatter>\n"
+            + "                    <syslog-format syslog-type=\"RFC5424\"/>\n"
+            + "                </formatter>\n"
+            + "            </syslog-handler>"
+            + "        </subsystem>\n"
+            + "    </profile>\n"
+            + "</server>";
+
+    private static final String NO_HANDLERS = ""
+            + "<server xmlns=\"urn:jboss:domain:4.0\">\n"
+            + "    <profile>\n"
+            + "        <subsystem xmlns=\"urn:jboss:domain:logging:3.0\"/>\n"
+            + "    </profile>\n"
+            + "</server>";
+
     @Rule
     public final TemporaryFolder tmp = new TemporaryFolder();
 
@@ -133,5 +158,21 @@ public class RemoveLogHandlerOfflineTest {
         assertXmlIdentical(HANDLER_ORIGINAL, Files.toString(cfg, Charsets.UTF_8));
 
         client.apply(Logging.handler().console().remove("NONEXISTING"));
+    }
+
+    @Test
+    public void removeSyslogHandler() throws Exception {
+        File cfg = tmp.newFile("xmlTransform.xml");
+        Files.write(SYSLOG_HANDLER, cfg, Charsets.UTF_8);
+
+        OfflineManagementClient client = ManagementClient.offline(
+                OfflineOptions.standalone().configurationFile(cfg).build());
+
+        RemoveLogHandler removeLogHandler = new RemoveLogHandler(SYSLOG, "syslog");
+
+        assertXmlIdentical(SYSLOG_HANDLER, Files.toString(cfg, Charsets.UTF_8));
+
+        client.apply(removeLogHandler);
+        assertXmlIdentical(NO_HANDLERS, Files.toString(cfg, Charsets.UTF_8));
     }
 }

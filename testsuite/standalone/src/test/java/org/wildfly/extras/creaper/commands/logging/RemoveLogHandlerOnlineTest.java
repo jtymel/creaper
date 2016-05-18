@@ -20,6 +20,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.wildfly.extras.creaper.commands.logging.LogHandlerType.SYSLOG;
 
 @RunWith(Arquillian.class)
 public class RemoveLogHandlerOnlineTest {
@@ -28,6 +29,13 @@ public class RemoveLogHandlerOnlineTest {
             .and("console-handler", TEST_HANDLER_NAME);
     private static final Address TEST_PERIODIC_HANDLER_ADDRESS = Address.subsystem("logging")
             .and("periodic-rotating-file-handler", TEST_HANDLER_NAME);
+    private static final Address TEST_SYSLOG_HANDLER_ADDRESS = Address.subsystem("logging")
+            .and("syslog-handler", "syslog-handler");
+
+    private static final AddSyslogHandler ADD_SYSLOG_HANDLER = new AddSyslogHandler.Builder("syslog-handler")
+            .port(514)
+            .appName("appplication name")
+            .build();
 
     private OnlineManagementClient client;
     private Operations ops;
@@ -92,5 +100,14 @@ public class RemoveLogHandlerOnlineTest {
         client.apply(Logging.handler().periodicRotatingFile().remove(TEST_HANDLER_NAME));
 
         assertFalse("periodic handler should be deleted", ops.exists(TEST_PERIODIC_HANDLER_ADDRESS));
+    }
+
+    @Test
+    public void removeSyslog() throws Exception {
+        client.apply(ADD_SYSLOG_HANDLER);
+        assertTrue("syslog handler was not created", ops.exists(TEST_SYSLOG_HANDLER_ADDRESS));
+
+        client.apply(new RemoveLogHandler(SYSLOG, "syslog-handler"));
+        assertFalse("syslog handler should be deleted", ops.exists(TEST_SYSLOG_HANDLER_ADDRESS));
     }
 }

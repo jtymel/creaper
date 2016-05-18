@@ -58,6 +58,10 @@ public final class Logging {
         public PeriodicRotatingFileLogHandler periodicRotatingFile() {
             return PeriodicRotatingFileLogHandler.INSTANCE;
         }
+
+        public SyslogLogHandler syslog() {
+            return SyslogLogHandler.INSTANCE;
+        }
     }
 
     // ---
@@ -105,6 +109,24 @@ public final class Logging {
 
         public RemoveLogHandler remove(String name) {
             return new RemoveLogHandler(LogHandlerType.PERIODIC_ROTATING_FILE, name);
+        }
+    }
+
+    public static final class SyslogLogHandler {
+        private static final SyslogLogHandler INSTANCE = new SyslogLogHandler();
+
+        private SyslogLogHandler() {}
+
+        public AddSyslogHandler.Builder add(String name) {
+            return new AddSyslogHandler.Builder(name);
+        }
+
+        public ChangeConsoleLogHandler.Builder change(String name) {
+            return new ChangeConsoleLogHandler.Builder(name);
+        }
+
+        public RemoveLogHandler remove(String name) {
+            return new RemoveLogHandler(LogHandlerType.SYSLOG, name);
         }
     }
 }

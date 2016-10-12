@@ -5,9 +5,13 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.dmr.ModelNode;
+import org.jboss.dmr.Property;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -127,15 +131,43 @@ public class AddCustomPrincipalDecoderOnlineTest extends AbstractElytronOnlineTe
             + " already exists in configuration, exception should be thrown");
     }
 
+    @Test
+    public void addDuplicateCustomPrincipalDecoderAllowed() throws Exception {
+        AddCustomPrincipalDecoder addOperation =
+            new AddCustomPrincipalDecoder.Builder(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_NAME)
+            .className(AddCustomPrincipalDecoderImpl.class.getName())
+            .module(CUSTOM_PRINCIPAL_DECODER_MODULE_NAME)
+            .build();
+        AddCustomPrincipalDecoder addOperation2 =
+            new AddCustomPrincipalDecoder.Builder(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_NAME)
+            .className(AddCustomPrincipalDecoderImpl.class.getName())
+            .module(CUSTOM_PRINCIPAL_DECODER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .replaceExisting()
+            .build();
+
+        client.apply(addOperation);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_ADDRESS));
+        client.apply(addOperation2);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_ADDRESS));
+
+        // check whether it was really rewritten
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_ADDRESS, "configuration", expectedValues);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void addCustomPrincipalDecoder_nullName() throws Exception {
-        new AddCustomPrincipalDecoder.Builder(null);
+        new AddCustomPrincipalDecoder.Builder(null)
+            .className(AddCustomPrincipalDecoderImpl.class.getName());
         fail("Creating command with null name should throw exception");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void addAddCustomPrincipalDecoder_emptyName() throws Exception {
-        new AddCustomPrincipalDecoder.Builder("");
+        new AddCustomPrincipalDecoder.Builder("")
+            .className(AddCustomPrincipalDecoderImpl.class.getName());
         fail("Creating command with empty name should throw exception");
     }
 
@@ -148,8 +180,7 @@ public class AddCustomPrincipalDecoderOnlineTest extends AbstractElytronOnlineTe
 
         client.apply(addAddCustomPrincipalDecoder);
 
-        assertTrue("Add custom principal decoder should be created",
-            ops.exists(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_ADDRESS));
+        fail("Command should throw exception because Impl class is in non-global module.");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -177,8 +208,7 @@ public class AddCustomPrincipalDecoderOnlineTest extends AbstractElytronOnlineTe
 
         client.apply(addAddCustomPrincipalDecoder);
 
-        assertTrue("Add custom principal decoder should be created",
-            ops.exists(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_ADDRESS));
+        fail("Command with wrong module-name should throw exception.");
     }
 
     @Test(expected = CommandFailedException.class)
@@ -193,5 +223,23 @@ public class AddCustomPrincipalDecoderOnlineTest extends AbstractElytronOnlineTe
         client.apply(addAddCustomPrincipalDecoder);
 
         fail("Creating command with test configuration should throw exception");
+    }
+
+    @Test
+    public void addCustomPrincipalDecoder_configuration() throws Exception {
+        AddCustomPrincipalDecoder addAddCustomPrincipalDecoder =
+            new AddCustomPrincipalDecoder.Builder(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_NAME2)
+            .className(AddCustomPrincipalDecoderImpl.class.getName())
+            .module(CUSTOM_PRINCIPAL_DECODER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .addConfiguration("configParam2", "configParameterValue2")
+            .build();
+
+        client.apply(addAddCustomPrincipalDecoder);
+
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        expectedValues.add(new Property("configParam2", new ModelNode("configParameterValue2")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_PRINCIPAL_DECODER_ADDRESS2, "configuration", expectedValues);
     }
 }

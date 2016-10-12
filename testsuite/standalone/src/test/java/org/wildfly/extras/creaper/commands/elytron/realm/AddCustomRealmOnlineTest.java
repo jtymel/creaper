@@ -1,20 +1,23 @@
-package org.wildfly.extras.creaper.commands.elytron.mapper;
+package org.wildfly.extras.creaper.commands.elytron.realm;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.dmr.ModelNode;
+import org.jboss.dmr.Property;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wildfly.extras.creaper.commands.elytron.AbstractElytronOnlineTest;
-import org.wildfly.extras.creaper.commands.elytron.realm.AddCustomRealm;
 import org.wildfly.extras.creaper.commands.modules.AddModule;
 import org.wildfly.extras.creaper.commands.modules.RemoveModule;
 import org.wildfly.extras.creaper.core.CommandFailedException;
@@ -117,15 +120,43 @@ public class AddCustomRealmOnlineTest extends AbstractElytronOnlineTest {
             + " already exists in configuration, exception should be thrown");
     }
 
+    @Test
+    public void addDuplicateCustomRealmAllowed() throws Exception {
+        AddCustomRealm addOperation =
+            new AddCustomRealm.Builder(TEST_ADD_CUSTOM_REALM_NAME)
+            .className(AddCustomRealmImpl.class.getName())
+            .module(CUSTOM_REALM_MODULE_NAME)
+            .build();
+        AddCustomRealm addOperation2 =
+            new AddCustomRealm.Builder(TEST_ADD_CUSTOM_REALM_NAME)
+            .className(AddCustomRealmImpl.class.getName())
+            .module(CUSTOM_REALM_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .replaceExisting()
+            .build();
+
+        client.apply(addOperation);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_REALM_ADDRESS));
+        client.apply(addOperation2);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_REALM_ADDRESS));
+
+        // check whether it was really rewritten
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_REALM_ADDRESS, "configuration", expectedValues);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void addCustomRealm_nullName() throws Exception {
-        new AddCustomRealm.Builder(null);
+        new AddCustomRealm.Builder(null)
+            .className(AddCustomRealmImpl.class.getName());
         fail("Creating command with null name should throw exception");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void addAddCustomRealm_emptyName() throws Exception {
-        new AddCustomRealm.Builder("");
+        new AddCustomRealm.Builder("")
+            .className(AddCustomRealmImpl.class.getName());
         fail("Creating command with empty name should throw exception");
     }
 
@@ -137,7 +168,7 @@ public class AddCustomRealmOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRealm);
 
-        assertTrue("Add custom realm should be created", ops.exists(TEST_ADD_CUSTOM_REALM_ADDRESS));
+        fail("Command should throw exception because Impl class is in non-global module.");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -161,7 +192,7 @@ public class AddCustomRealmOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRealm);
 
-        assertTrue("Add custom realm should be created", ops.exists(TEST_ADD_CUSTOM_REALM_ADDRESS));
+        fail("Command should throw exception.");
     }
 
     @Test(expected = CommandFailedException.class)
@@ -174,6 +205,23 @@ public class AddCustomRealmOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRealm);
 
-        fail("Creating command with test configuration should throw exception");
+        fail("Command with wrong module-name should throw exception.");
+    }
+
+    @Test
+    public void addCustomRealm_configuration() throws Exception {
+        AddCustomRealm addAddCustomRealm = new AddCustomRealm.Builder(TEST_ADD_CUSTOM_REALM_NAME2)
+            .className(AddCustomRealmImpl.class.getName())
+            .module(CUSTOM_REALM_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .addConfiguration("configParam2", "configParameterValue2")
+            .build();
+
+        client.apply(addAddCustomRealm);
+
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        expectedValues.add(new Property("configParam2", new ModelNode("configParameterValue2")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_REALM_ADDRESS2, "configuration", expectedValues);
     }
 }

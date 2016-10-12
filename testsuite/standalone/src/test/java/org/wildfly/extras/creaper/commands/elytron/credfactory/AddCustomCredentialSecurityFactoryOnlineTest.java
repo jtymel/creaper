@@ -5,9 +5,13 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.dmr.ModelNode;
+import org.jboss.dmr.Property;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -127,15 +131,43 @@ public class AddCustomCredentialSecurityFactoryOnlineTest extends AbstractElytro
             + " already exists in configuration, exception should be thrown");
     }
 
+    @Test
+    public void addDuplicateCustomCredentialSecurityFactoryAllowed() throws Exception {
+        AddCustomCredentialSecurityFactory addOperation =
+            new AddCustomCredentialSecurityFactory.Builder(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_NAME)
+            .className(AddCustomCredentialSecurityFactoryImpl.class.getName())
+            .module(CUSTOM_CRED_SEC_FACTORY_MODULE_NAME)
+            .build();
+        AddCustomCredentialSecurityFactory addOperation2 =
+            new AddCustomCredentialSecurityFactory.Builder(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_NAME)
+            .className(AddCustomCredentialSecurityFactoryImpl.class.getName())
+            .module(CUSTOM_CRED_SEC_FACTORY_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .replaceExisting()
+            .build();
+
+        client.apply(addOperation);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_ADDRESS));
+        client.apply(addOperation2);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_ADDRESS));
+
+        // check whether it was really rewritten
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_ADDRESS, "configuration", expectedValues);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void addCustomCredentialSecurityFactory_nullName() throws Exception {
-        new AddCustomCredentialSecurityFactory.Builder(null);
+        new AddCustomCredentialSecurityFactory.Builder(null)
+            .className(AddCustomCredentialSecurityFactoryImpl.class.getName());
         fail("Creating command with null name should throw exception");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void addAddCustomCredentialSecurityFactory_emptyName() throws Exception {
-        new AddCustomCredentialSecurityFactory.Builder("");
+        new AddCustomCredentialSecurityFactory.Builder("")
+            .className(AddCustomCredentialSecurityFactoryImpl.class.getName());
         fail("Creating command with empty name should throw exception");
     }
 
@@ -148,8 +180,7 @@ public class AddCustomCredentialSecurityFactoryOnlineTest extends AbstractElytro
 
         client.apply(addAddCustomCredentialSecurityFactory);
 
-        assertTrue("Add custom credential security factory should be created",
-            ops.exists(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_ADDRESS));
+        fail("Command should throw exception because Impl class is in non-global module.");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -177,8 +208,7 @@ public class AddCustomCredentialSecurityFactoryOnlineTest extends AbstractElytro
 
         client.apply(addAddCustomCredentialSecurityFactory);
 
-        assertTrue("Add custom credential security factory should be created",
-            ops.exists(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_ADDRESS));
+        fail("Command with wrong module-name should throw exception.");
     }
 
     @Test(expected = CommandFailedException.class)
@@ -193,5 +223,23 @@ public class AddCustomCredentialSecurityFactoryOnlineTest extends AbstractElytro
         client.apply(addAddCustomCredentialSecurityFactory);
 
         fail("Creating command with test configuration should throw exception");
+    }
+
+    @Test
+    public void addCustomCredentialSecurityFactory_configuration() throws Exception {
+        AddCustomCredentialSecurityFactory command =
+            new AddCustomCredentialSecurityFactory.Builder(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_NAME2)
+            .className(AddCustomCredentialSecurityFactoryImpl.class.getName())
+            .module(CUSTOM_CRED_SEC_FACTORY_MODULE_NAME)
+                .addConfiguration("configParam1", "configParameterValue")
+                .addConfiguration("configParam2", "configParameterValue2")
+            .build();
+
+        client.apply(command);
+
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        expectedValues.add(new Property("configParam2", new ModelNode("configParameterValue2")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_CRED_SEC_FACTORY_ADDRESS2, "configuration", expectedValues);
     }
 }

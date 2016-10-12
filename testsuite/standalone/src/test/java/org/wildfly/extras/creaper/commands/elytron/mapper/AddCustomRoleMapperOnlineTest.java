@@ -5,9 +5,13 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.dmr.ModelNode;
+import org.jboss.dmr.Property;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -116,15 +120,43 @@ public class AddCustomRoleMapperOnlineTest extends AbstractElytronOnlineTest {
             + " already exists in configuration, exception should be thrown");
     }
 
+    @Test
+    public void addDuplicateCustomRoleMapperAllowed() throws Exception {
+        AddCustomRoleMapper addOperation =
+            new AddCustomRoleMapper.Builder(TEST_ADD_CUSTOM_ROLE_MAPPER_NAME)
+            .className(AddCustomRoleMapperImpl.class.getName())
+            .module(CUSTOM_ROLE_MAPPER_MODULE_NAME)
+            .build();
+        AddCustomRoleMapper addOperation2 =
+            new AddCustomRoleMapper.Builder(TEST_ADD_CUSTOM_ROLE_MAPPER_NAME)
+            .className(AddCustomRoleMapperImpl.class.getName())
+            .module(CUSTOM_ROLE_MAPPER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .replaceExisting()
+            .build();
+
+        client.apply(addOperation);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_ROLE_MAPPER_ADDRESS));
+        client.apply(addOperation2);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_ROLE_MAPPER_ADDRESS));
+
+        // check whether it was really rewritten
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_ROLE_MAPPER_ADDRESS, "configuration", expectedValues);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void addCustomRoleMapper_nullName() throws Exception {
-        new AddCustomRoleMapper.Builder(null);
+        new AddCustomRoleMapper.Builder(null)
+            .className(AddCustomRoleMapperImpl.class.getName()).build();
         fail("Creating command with null name should throw exception");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void addAddCustomRoleMapper_emptyName() throws Exception {
-        new AddCustomRoleMapper.Builder("");
+        new AddCustomRoleMapper.Builder("")
+            .className(AddCustomRoleMapperImpl.class.getName()).build();
         fail("Creating command with empty name should throw exception");
     }
 
@@ -135,7 +167,7 @@ public class AddCustomRoleMapperOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRoleMapper);
 
-        assertTrue("Add custom role mapper should be created", ops.exists(TEST_ADD_CUSTOM_ROLE_MAPPER_ADDRESS));
+        fail("Command should throw exception because Impl class is in non-global module.");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -159,7 +191,7 @@ public class AddCustomRoleMapperOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRoleMapper);
 
-        assertTrue("Add custom role mapper should be created", ops.exists(TEST_ADD_CUSTOM_ROLE_MAPPER_ADDRESS));
+        fail("Command with wrong module-name should throw exception.");
     }
 
     @Test(expected = CommandFailedException.class)
@@ -173,5 +205,22 @@ public class AddCustomRoleMapperOnlineTest extends AbstractElytronOnlineTest {
         client.apply(addAddCustomRoleMapper);
 
         fail("Creating command with test configuration should throw exception");
+    }
+
+    @Test
+    public void addCustomRoleMapper_configuration() throws Exception {
+        AddCustomRoleMapper addAddCustomRoleMapper = new AddCustomRoleMapper.Builder(TEST_ADD_CUSTOM_ROLE_MAPPER_NAME2)
+            .className(AddCustomRoleMapperImpl.class.getName())
+            .module(CUSTOM_ROLE_MAPPER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .addConfiguration("configParam2", "configParameterValue2")
+            .build();
+
+        client.apply(addAddCustomRoleMapper);
+
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        expectedValues.add(new Property("configParam2", new ModelNode("configParameterValue2")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_ROLE_MAPPER_ADDRESS2, "configuration", expectedValues);
     }
 }

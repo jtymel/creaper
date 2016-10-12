@@ -5,9 +5,13 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.dmr.ModelNode;
+import org.jboss.dmr.Property;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -120,15 +124,43 @@ public class AddCustomRealmMapperOnlineTest extends AbstractElytronOnlineTest {
             + " already exists in configuration, exception should be thrown");
     }
 
+    @Test
+    public void addDuplicateCustomRealmMapperAllowed() throws Exception {
+        AddCustomRealmMapper addOperation =
+            new AddCustomRealmMapper.Builder(TEST_ADD_CUSTOM_REALM_MAPPER_NAME)
+            .className(AddCustomRealmMapperImpl.class.getName())
+            .module(CUSTOM_REALM_MAPPER_MODULE_NAME)
+            .build();
+        AddCustomRealmMapper addOperation2 =
+            new AddCustomRealmMapper.Builder(TEST_ADD_CUSTOM_REALM_MAPPER_NAME)
+            .className(AddCustomRealmMapperImpl.class.getName())
+            .module(CUSTOM_REALM_MAPPER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .replaceExisting()
+            .build();
+
+        client.apply(addOperation);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_REALM_MAPPER_ADDRESS));
+        client.apply(addOperation2);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_REALM_MAPPER_ADDRESS));
+
+        // check whether it was really rewritten
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_REALM_MAPPER_ADDRESS, "configuration", expectedValues);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void addCustomRealmMapper_nullName() throws Exception {
-        new AddCustomRealmMapper.Builder(null);
+        new AddCustomRealmMapper.Builder(null)
+            .className(AddCustomRealmMapperImpl.class.getName());
         fail("Creating command with null name should throw exception");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void addAddCustomRealmMapper_emptyName() throws Exception {
-        new AddCustomRealmMapper.Builder("");
+        new AddCustomRealmMapper.Builder("")
+            .className(AddCustomRealmMapperImpl.class.getName());
         fail("Creating command with empty name should throw exception");
     }
 
@@ -141,7 +173,7 @@ public class AddCustomRealmMapperOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRealmMapper);
 
-        assertTrue("Add custom realm mapper should be created", ops.exists(TEST_ADD_CUSTOM_REALM_MAPPER_ADDRESS));
+        fail("Command should throw exception because Impl class is in non-global module.");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -166,7 +198,7 @@ public class AddCustomRealmMapperOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomRealmMapper);
 
-        assertTrue("Add custom realm mapper should be created", ops.exists(TEST_ADD_CUSTOM_REALM_MAPPER_ADDRESS));
+        fail("Command with wrong module-name should throw exception.");
     }
 
     @Test(expected = CommandFailedException.class)
@@ -181,5 +213,23 @@ public class AddCustomRealmMapperOnlineTest extends AbstractElytronOnlineTest {
         client.apply(addAddCustomRealmMapper);
 
         fail("Creating command with test configuration should throw exception");
+    }
+
+    @Test
+    public void addCustomRealmMapper_configuration() throws Exception {
+        AddCustomRealmMapper addAddCustomRealmMapper =
+            new AddCustomRealmMapper.Builder(TEST_ADD_CUSTOM_REALM_MAPPER_NAME2)
+            .className(AddCustomRealmMapperImpl.class.getName())
+            .module(CUSTOM_REALM_MAPPER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .addConfiguration("configParam2", "configParameterValue2")
+            .build();
+
+        client.apply(addAddCustomRealmMapper);
+
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        expectedValues.add(new Property("configParam2", new ModelNode("configParameterValue2")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_REALM_MAPPER_ADDRESS2, "configuration", expectedValues);
     }
 }

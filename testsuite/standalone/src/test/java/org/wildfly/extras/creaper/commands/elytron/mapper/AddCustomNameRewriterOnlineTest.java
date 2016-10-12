@@ -5,9 +5,13 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.dmr.ModelNode;
+import org.jboss.dmr.Property;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -127,15 +131,43 @@ public class AddCustomNameRewriterOnlineTest extends AbstractElytronOnlineTest {
             + " already exists in configuration, exception should be thrown");
     }
 
+    @Test
+    public void addDuplicateCustomNameRewriterAllowed() throws Exception {
+        AddCustomNameRewriter addOperation =
+            new AddCustomNameRewriter.Builder(TEST_ADD_CUSTOM_NAME_REWRITER_NAME)
+            .className(AddCustomNameRewriterImpl.class.getName())
+            .module(CUSTOM_NAME_REWRITER_MODULE_NAME)
+            .build();
+        AddCustomNameRewriter addOperation2 =
+            new AddCustomNameRewriter.Builder(TEST_ADD_CUSTOM_NAME_REWRITER_NAME)
+            .className(AddCustomNameRewriterImpl.class.getName())
+            .module(CUSTOM_NAME_REWRITER_MODULE_NAME)
+            .addConfiguration("configParam1", "configParameterValue")
+            .replaceExisting()
+            .build();
+
+        client.apply(addOperation);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_NAME_REWRITER_ADDRESS));
+        client.apply(addOperation2);
+        assertTrue("Add operation should be successful", ops.exists(TEST_ADD_CUSTOM_NAME_REWRITER_ADDRESS));
+
+        // check whether it was really rewritten
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_NAME_REWRITER_ADDRESS, "configuration", expectedValues);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void addCustomNameRewriter_nullName() throws Exception {
-        new AddCustomNameRewriter.Builder(null);
+        new AddCustomNameRewriter.Builder(null)
+            .className(AddCustomNameRewriterImpl.class.getName());
         fail("Creating command with null name should throw exception");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void addAddCustomNameRewriter_emptyName() throws Exception {
-        new AddCustomNameRewriter.Builder("");
+        new AddCustomNameRewriter.Builder("")
+            .className(AddCustomNameRewriterImpl.class.getName());
         fail("Creating command with empty name should throw exception");
     }
 
@@ -148,8 +180,7 @@ public class AddCustomNameRewriterOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomNameRewriter);
 
-        assertTrue("Add custom name rewriter should be created",
-            ops.exists(TEST_ADD_CUSTOM_NAME_REWRITER_ADDRESS));
+        fail("Command should throw exception because Impl class is in non-global module.");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -177,8 +208,7 @@ public class AddCustomNameRewriterOnlineTest extends AbstractElytronOnlineTest {
 
         client.apply(addAddCustomNameRewriter);
 
-        assertTrue("Add custom name rewriter should be created",
-            ops.exists(TEST_ADD_CUSTOM_NAME_REWRITER_ADDRESS));
+        fail("Command with wrong module-name should throw exception.");
     }
 
     @Test(expected = CommandFailedException.class)
@@ -193,5 +223,23 @@ public class AddCustomNameRewriterOnlineTest extends AbstractElytronOnlineTest {
         client.apply(addAddCustomNameRewriter);
 
         fail("Creating command with test configuration should throw exception");
+    }
+
+    @Test
+    public void addCustomNameRewriter_configuration() throws Exception {
+        AddCustomNameRewriter addAddCustomNameRewriter =
+            new AddCustomNameRewriter.Builder(TEST_ADD_CUSTOM_NAME_REWRITER_NAME2)
+            .className(AddCustomNameRewriterImpl.class.getName())
+            .module(CUSTOM_NAME_REWRITER_MODULE_NAME)
+                .addConfiguration("configParam1", "configParameterValue")
+                .addConfiguration("configParam2", "configParameterValue2")
+            .build();
+
+        client.apply(addAddCustomNameRewriter);
+
+        List<Property> expectedValues = new ArrayList<>();
+        expectedValues.add(new Property("configParam1", new ModelNode("configParameterValue")));
+        expectedValues.add(new Property("configParam2", new ModelNode("configParameterValue2")));
+        checkAttributeProperties(TEST_ADD_CUSTOM_NAME_REWRITER_ADDRESS2, "configuration", expectedValues);
     }
 }
